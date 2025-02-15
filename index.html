@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>4択問題 Web アプリ</title>
+    <meta charset="UTF-8">
+</head>
+<body onload="init()">
+    <h1>4択問題</h1>
+    <input type="file" id="csvFileInput" accept=".csv">
+    <button id="loadButton">問題読み込み</button>
+    <button id="startButton">出題開始</button>
+
+    <div id="questionArea" style="display:none;">
+        <p id="questionNumber"></p>
+        <p id="questionText"></p>
+        <form id="answerForm">
+            <label><input type="radio" name="answer" value="1"> <span id="choice1"></span></label><br>
+            <label><input type="radio" name="answer" value="2"> <span id="choice2"></span></label><br>
+            <label><input type="radio" name="answer" value="3"> <span id="choice3"></span></label><br>
+            <label><input type="radio" name="answer" value="4"> <span id="choice4"></span></label><br>
+            <button type="button" id="answerButton">回答</button>
+        </form>
+        <p id="result"></p>
+        <button id="nextButton">次へ</button>
+
+        <div id="result"></div>
+        <br>
+        <hr>
+        <br>
+        <div id="summary"></div>
+    </div>
+
+    <script>
+    const csvFileInput = document.getElementById('csvFileInput');
+    const loadButton = document.getElementById('loadButton');
+    const startButton = document.getElementById('startButton');
+    const questionArea = document.getElementById('questionArea');
+    const questionNumber = document.getElementById('questionNumber');
+    const questionText = document.getElementById('questionText');
+    const answerForm = document.getElementById('answerForm');
+    const choice1 = document.getElementById('choice1');
+    const choice2 = document.getElementById('choice2');
+    const choice3 = document.getElementById('choice3');
+    const choice4 = document.getElementById('choice4');
+    const answerButton = document.getElementById('answerButton');
+    const result = document.getElementById('result');
+    const nextButton = document.getElementById('nextButton');
+    const resultDiv = document.getElementById('result');
+    const summaryDiv = document.getElementById('summary');
+    
+    let questions = [];
+    let currentQuestionIndex = 0;
+    let userAnswers = [];
+    
+    loadButton.addEventListener('click', () => {
+        csvFileInput.click();
+    });
+    
+    csvFileInput.addEventListener('change', (event) => {
+        const file = event.target.files[0];
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            questions = parseCSV(e.target.result);
+            startButton.style.display = 'block';
+        }
+        alert("Success！");
+        reader.readAsText(file);
+    });
+    
+    startButton.addEventListener('click', () => {
+        currentQuestionIndex = 0;
+        userAnswers = [];
+        showQuestion();
+        summaryDiv.innerText = '';
+        questionArea.style.display = 'block';
+        startButton.style.display = 'none';
+        answerButton.style.display = 'block';
+    });
+    
+    answerButton.addEventListener('click', () => {
+        const selectedAnswer = document.querySelector('input[name="answer"]:checked');
+        if (selectedAnswer) {
+            const answer = parseInt(selectedAnswer.value);
+            const row = questions[currentQuestionIndex];
+            const correctAnswer = parseInt(row.get("answer"));
+            const isCorrect = answer === correctAnswer;
+            result.textContent = isCorrect ? '〇' : '✕';
+            const userAnswer = parseInt(selectedAnswer.value);
+            userAnswers.push(userAnswer);
+            resultDiv.textContent = isCorrect ? '〇' : '✕';
+            showSummary();
+            nextButton.disabled = false;
+            answerButton.style.display = 'none';
+        }
+    });
+    
+    nextButton.addEventListener('click', () => {
+        currentQuestionIndex++;
+        if (currentQuestionIndex < questions.length) {
+            showQuestion();
+            resultDiv.textContent = '';
+            nextButton.disabled = true;
+            answerButton.style.display = 'block';
+        } else {
+            alert("全ての問題が終了しました。")
+            showFinalResult();
+        }
+    });
+    
+    function init() {
+        csvFileInput.style.display = 'none';
+        startButton.style.display = 'none';
+    }
+    
+    function showQuestion() {
+        const question = questions[currentQuestionIndex];
+        questionNumber.textContent = `問題 ${currentQuestionIndex + 1}`;
+        questionText.textContent = question.get("question");
+        choice1.textContent = question.get("s1");
+        choice2.textContent = question.get("s2");
+        choice3.textContent = question.get("s3");
+        choice4.textContent = question.get("s4");
+        const choices = document.querySelectorAll('input[name="choice"]');
+        choices.forEach(choice => choice.checked = false);
+    }
+    
+    function parseCSV(csvText) {
+        const lines = csvText.split('\n');
+        const headers = lines[0].split(',');
+        const questionData = [];
+        
+        for (let i = 1; i < lines.length; i++) {
+            const values = lines[i].split(',');
+            const row = new Map();
+            for (let j = 0; j < headers.length; j++) {
+                row.set(headers[j], values[j]);
+            }
+            
+            questionData.push(row);
+        }
+        
+        return questionData;
+    }
+    
+    function exportResultsToCSV(results) {
+        const csvContent = "data:text/csv;charset=utf-8," + encodeURIComponent(convertToCSV(results));
+        const link = document.createElement("a");
+        link.setAttribute("href", csvContent);
+        link.setAttribute("download", "questions_result.csv");
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+    
+    function showSummary() {
+        const questionData = questions[currentQuestionIndex];
+        const userAnswer = userAnswers[currentQuestionIndex];
+        const correctAnswer = parseInt(questionData.get("answer"));
+        const resultText = `問題${currentQuestionIndex + 1}: あなたの解答: ${userAnswer}, 正解: ${correctAnswer}, 結果: ${userAnswer === correctAnswer ? '〇' : '✕'}`;
+        summaryDiv.innerText += resultText + '\n';
+    }
+    
+    function showFinalResult() {
+        let correctCount = 0;
+        
+        for (let i = 0; i < questions.length; i++) {
+            if (userAnswers[i] === parseInt(questions[i].get("answer"))) {
+                correctCount++;
+            }
+        }
+        const finalResultP = `${parseInt(correctCount/questions.length*100)} %`
+        const finalResult = `正解数: ${correctCount} / ${questions.length}`;
+        summaryDiv.innerText += '\n' + finalResult + '\n正答率: ' + finalResultP + '\n';
+        startButton.style.display = 'block';
+    }
+    
+    nextButton.disabled = true;
+    </script>
+    </body>
+</html>
